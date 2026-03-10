@@ -1,0 +1,7 @@
+[DEFAULT]
+# Use iptables-multiport as default ban action
+banaction = iptables-multiport
+
+[sshd]
+# Disable sshd jail if this is a web-only container with no SSH
+enabled = false
