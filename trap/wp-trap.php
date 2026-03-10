@@ -36,7 +36,7 @@ if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
 $ip = trim($ip);
 
 // --- State tracking per IP ---
-if (!is_dir($state_dir)) mkdir($state_dir, 0755, true);
+if (!is_dir($state_dir)) mkdir($state_dir, 0700, true);
 $state_file = $state_dir . '/' . md5($ip) . '.json';
 $state = file_exists($state_file) ? json_decode(file_get_contents($state_file), true) : [];
 $attempts = ($state['attempts'] ?? 0);

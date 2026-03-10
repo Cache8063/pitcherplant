@@ -63,7 +63,7 @@ SITE_NAME="${SITE_NAME:-WordPress}"
 SITE_URL="${SITE_URL:-}"
 LOG_FILE="${LOG_FILE:-/var/log/wp-honeypot.log}"
 INTEL_FILE="${INTEL_FILE:-/var/log/wp-honeypot-intel.jsonl}"
-STATE_DIR="${STATE_DIR:-/tmp/wp-honeypot}"
+STATE_DIR="${STATE_DIR:-/var/lib/wp-honeypot}"
 MAX_DELAY="${MAX_DELAY:-30}"
 F2B_MAXRETRY="${F2B_MAXRETRY:-20}"
 F2B_FINDTIME="${F2B_FINDTIME:-86400}"
@@ -123,11 +123,14 @@ write_file "$CONFIG_PHP" "$WP_ROOT/wp-trap-config.php"
 run "chown www-data:www-data $WP_ROOT/wp-trap.php $WP_ROOT/wp-trap-config.php 2>/dev/null || true"
 run "chmod 644 $WP_ROOT/wp-trap.php $WP_ROOT/wp-trap-config.php"
 
-# --- 3. Create log files ---
-info "Creating log files..."
+# --- 3. Create log files and state directory ---
+info "Creating log files and state directory..."
 run "touch $LOG_FILE $INTEL_FILE"
 run "chown www-data:www-data $LOG_FILE $INTEL_FILE 2>/dev/null || true"
-run "chmod 644 $LOG_FILE $INTEL_FILE"
+run "chmod 640 $LOG_FILE $INTEL_FILE"
+run "mkdir -p $STATE_DIR"
+run "chown www-data:www-data $STATE_DIR 2>/dev/null || true"
+run "chmod 700 $STATE_DIR"
 
 # --- 4. Install fail2ban if needed ---
 info "Checking fail2ban..."

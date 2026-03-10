@@ -10,5 +10,5 @@ $site_name  = 'My WordPress Site';
 $site_url   = 'https://example.com';
 $log_file   = '/var/log/wp-honeypot.log';
 $intel_file = '/var/log/wp-honeypot-intel.jsonl';
-$state_dir  = '/tmp/wp-honeypot';
+$state_dir  = '/var/lib/wp-honeypot';
 $max_delay  = 30;
