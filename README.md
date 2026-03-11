@@ -1,4 +1,4 @@
-# wp-honeypot
+# pitcherplant
 
 A WordPress login honeypot and tarpit. Serves a pixel-perfect fake `/wp-login.php` page that logs attacker credentials, applies progressive delays, and feeds fail2ban for long-duration IP bans.
 
@@ -22,7 +22,7 @@ Logged-in administrators with valid WordPress cookies bypass the honeypot entire
 
 ```bash
 # 1. Clone the repo
-git clone <repo-url> wp-honeypot && cd wp-honeypot
+git clone <repo-url> pitcherplant && cd pitcherplant
 
 # 2. Configure for your site
 cp config.env.example config.env
@@ -115,7 +115,7 @@ GET requests (reconnaissance) are also logged with URI, headers, and country.
 ## File layout
 
 ```
-wp-honeypot/
+pitcherplant/
 ├── install.sh                  # Deployment script
 ├── config.env.example          # Configuration template
 ├── trap/

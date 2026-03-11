@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 #
-# wp-honeypot installer
+# pitcherplant installer
 #
 # Deploys the honeypot tarpit + fail2ban to a WordPress server.
 # Supports local, remote SSH, and Proxmox LXC targets.
@@ -69,7 +69,7 @@ F2B_MAXRETRY="${F2B_MAXRETRY:-20}"
 F2B_FINDTIME="${F2B_FINDTIME:-86400}"
 F2B_BANTIME="${F2B_BANTIME:-2592000}"
 
-info "Deploying wp-honeypot to $WP_ROOT ($MODE mode)"
+info "Deploying pitcherplant to $WP_ROOT ($MODE mode)"
 [ -n "$HOST" ] && info "  Host: $HOST"
 [ -n "$VMID" ] && info "  VMID: $VMID"
 info "  Site: $SITE_NAME ($SITE_URL)"

@@ -1,6 +1,6 @@
 <?php
 /**
- * wp-honeypot Intelligence Dashboard
+ * pitcherplant Intelligence Dashboard
  *
  * Standalone PHP page — deploy behind authentication or on an internal network.
  * Reads the JSONL intel log directly. No database required.
@@ -1015,7 +1015,7 @@ $d = $ip_details[$ip] ?? []; ?>
         TRAP ACTIVE // MONITORING
     </div>
     <div>
-        wp-honeypot // <?php echo date('Y-m-d H:i:s T'); ?>
+        pitcherplant // <?php echo date('Y-m-d H:i:s T'); ?>
     </div>
 </div>
 
