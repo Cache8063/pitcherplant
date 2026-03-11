@@ -32,6 +32,15 @@ cp config.env.example config.env
 ./install.sh
 ```
 
+## Docker
+
+```bash
+docker pull ghcr.io/cache8063/pitcherplant:latest
+docker run -d -p 8080:80 ghcr.io/cache8063/pitcherplant:latest
+```
+
+Edit `wp-trap-config.php` inside the container to set your site name and URL. Logs are written to `/var/log/wp-honeypot-intel.jsonl` inside the container. The dashboard is available at `/dashboard/`.
+
 ## Install modes
 
 ```bash
