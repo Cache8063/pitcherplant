@@ -9,7 +9,6 @@
  * Real login is at the custom WPS Hide Login slug (or similar).
  *
  * Configuration: edit wp-trap-config.php alongside this file.
- * Project: https://gitea.cloudforest-basilisk.ts.net/Arcnode.xyz/wp-honeypot
  */
 
 // --- Load configuration ---
