@@ -4,6 +4,8 @@ A WordPress login honeypot and tarpit. Serves a pixel-perfect fake `/wp-login.ph
 
 Your real login lives at a hidden URL (via [WPS Hide Login](https://wordpress.org/plugins/wps-hide-login/) or similar). Attackers hitting the default WordPress login paths get trapped.
 
+![Dashboard](screenshots/dashboard.png)
+
 ## How it works
 
 1. Apache rewrite rules redirect unauthenticated requests to `/wp-login.php` and `/wp-admin` to `wp-trap.php`
