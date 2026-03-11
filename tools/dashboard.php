@@ -9,7 +9,6 @@
  */
 
 // --- Configuration ---
-// Load config.php (same directory), or fall back to trap config, or defaults.
 $intel_file = '/var/log/wp-honeypot-intel.jsonl';
 $site_name  = 'WordPress';
 $dashboard_token = '';
@@ -50,15 +49,12 @@ $hours = [];
 $creds = [];
 $ip_details = [];
 $last_event_time = '';
-$attack_types = ['login' => 0, 'recon' => 0];
 
 foreach ($entries as $e) {
     if (($e['type'] ?? '') === 'recon') {
         $total_recon++;
-        $attack_types['recon']++;
     } else {
         $total_attempts += ($e['attempt'] ?? 0) > 0 ? 1 : 0;
-        $attack_types['login']++;
     }
 
     $ip = $e['ip'] ?? '?';
@@ -124,6 +120,9 @@ if ($last_event_time) {
     else $last_ago = floor($diff/86400) . 'd ago';
 }
 
+// Last 12 hours for compact timeline
+$recent_hours = array_slice($hours, -12, 12, true);
+
 // Active tab
 $tab = $_GET['tab'] ?? 'overview';
 ?>
@@ -139,7 +138,6 @@ $tab = $_GET['tab'] ?? 'overview';
 
 :root {
     --bg: #05080f;
-    --bg2: #0a0e18;
     --card: #0d1320;
     --card-hover: #111828;
     --border: #1a2540;
@@ -172,530 +170,167 @@ body {
     min-height: 100vh;
 }
 
-/* Scanline overlay */
 body::before {
     content: '';
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 2px,
-        rgba(0, 229, 255, 0.008) 2px,
-        rgba(0, 229, 255, 0.008) 4px
-    );
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,229,255,0.008) 2px, rgba(0,229,255,0.008) 4px);
     pointer-events: none;
     z-index: 9999;
 }
 
-/* Grid background */
 body::after {
     content: '';
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background-image:
-        linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+    background-image: linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
     background-size: 40px 40px;
     pointer-events: none;
     z-index: -1;
 }
 
-.wrap {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 16px 20px;
-    position: relative;
-}
+.wrap { max-width: 1400px; margin: 0 auto; padding: 16px 20px; }
 
-/* ---- HEADER ---- */
+/* HEADER */
 .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between;
     padding: 12px 20px;
-    background: linear-gradient(135deg, var(--card) 0%, rgba(0, 229, 255, 0.05) 100%);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--cyan);
-    border-radius: 4px;
+    background: linear-gradient(135deg, var(--card) 0%, rgba(0,229,255,0.05) 100%);
+    border: 1px solid var(--border); border-left: 3px solid var(--cyan); border-radius: 4px;
     margin-bottom: 16px;
 }
-
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
+.header-left { display: flex; align-items: center; gap: 16px; }
 .header-icon {
-    width: 36px;
-    height: 36px;
-    border: 2px solid var(--cyan);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
+    width: 36px; height: 36px; border: 2px solid var(--cyan); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
     animation: pulse-ring 3s ease-in-out infinite;
 }
-
 .header-icon::before {
-    content: '';
-    width: 10px;
-    height: 10px;
-    background: var(--cyan);
-    border-radius: 50%;
-    box-shadow: 0 0 12px var(--cyan), 0 0 24px rgba(0, 229, 255, 0.3);
+    content: ''; width: 10px; height: 10px; background: var(--cyan); border-radius: 50%;
+    box-shadow: 0 0 12px var(--cyan), 0 0 24px rgba(0,229,255,0.3);
 }
-
 @keyframes pulse-ring {
-    0%, 100% { border-color: var(--cyan); box-shadow: 0 0 8px rgba(0, 229, 255, 0.2); }
-    50% { border-color: var(--cyan-dim); box-shadow: 0 0 4px rgba(0, 229, 255, 0.1); }
+    0%,100% { border-color: var(--cyan); box-shadow: 0 0 8px rgba(0,229,255,0.2); }
+    50% { border-color: var(--cyan-dim); box-shadow: 0 0 4px rgba(0,229,255,0.1); }
 }
+.header-title { font-family: var(--mono); font-size: 16px; font-weight: 700; color: var(--cyan); letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 0 20px rgba(0,229,255,0.3); }
+.header-subtitle { font-family: var(--mono); font-size: 11px; color: var(--dim); letter-spacing: 1px; }
+.header-right { display: flex; align-items: center; gap: 20px; font-family: var(--mono); font-size: 11px; }
+.header-meta { text-align: right; color: var(--dim); }
+.header-meta .val { color: var(--text); }
 
-.header-title {
-    font-family: var(--mono);
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--cyan);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
-}
+.threat-badge { padding: 4px 14px; border-radius: 3px; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; animation: threat-pulse 2s ease-in-out infinite; }
+.threat-badge.nominal { background: rgba(0,230,118,0.1); border: 1px solid var(--green-dim); color: var(--green); }
+.threat-badge.elevated { background: rgba(255,171,0,0.1); border: 1px solid var(--amber-dim); color: var(--amber); }
+.threat-badge.high { background: rgba(255,23,68,0.1); border: 1px solid var(--red-dim); color: var(--red); }
+.threat-badge.critical { background: rgba(255,23,68,0.15); border: 1px solid var(--red); color: var(--red); animation: threat-critical 1s ease-in-out infinite; }
+@keyframes threat-pulse { 0%,100% { opacity:1; } 50% { opacity:0.7; } }
+@keyframes threat-critical { 0%,100% { opacity:1; box-shadow: 0 0 12px rgba(255,23,68,0.3); } 50% { opacity:0.8; box-shadow: 0 0 20px rgba(255,23,68,0.5); } }
 
-.header-subtitle {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--dim);
-    letter-spacing: 1px;
-}
-
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    font-family: var(--mono);
-    font-size: 11px;
-}
-
-.header-meta {
-    text-align: right;
-    color: var(--dim);
-}
-
-.header-meta .val {
-    color: var(--text);
-}
-
-.threat-badge {
-    padding: 4px 14px;
-    border-radius: 3px;
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    animation: threat-pulse 2s ease-in-out infinite;
-}
-
-.threat-badge.nominal {
-    background: rgba(0, 230, 118, 0.1);
-    border: 1px solid var(--green-dim);
-    color: var(--green);
-}
-
-.threat-badge.elevated {
-    background: rgba(255, 171, 0, 0.1);
-    border: 1px solid var(--amber-dim);
-    color: var(--amber);
-}
-
-.threat-badge.high {
-    background: rgba(255, 23, 68, 0.1);
-    border: 1px solid var(--red-dim);
-    color: var(--red);
-}
-
-.threat-badge.critical {
-    background: rgba(255, 23, 68, 0.15);
-    border: 1px solid var(--red);
-    color: var(--red);
-    animation: threat-critical 1s ease-in-out infinite;
-}
-
-@keyframes threat-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-@keyframes threat-critical {
-    0%, 100% { opacity: 1; box-shadow: 0 0 12px rgba(255, 23, 68, 0.3); }
-    50% { opacity: 0.8; box-shadow: 0 0 20px rgba(255, 23, 68, 0.5); }
-}
-
-/* ---- STAT CARDS ---- */
-.stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
-    margin-bottom: 16px;
-}
-
-.stat {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 16px 20px;
-    position: relative;
-    overflow: hidden;
-    transition: all 0.2s;
-}
-
-.stat:hover {
-    background: var(--card-hover);
-    border-color: var(--border-glow);
-}
-
-.stat::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-}
-
+/* STAT CARDS */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stat { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 16px 20px; position: relative; overflow: hidden; transition: all 0.2s; }
+.stat:hover { background: var(--card-hover); border-color: var(--border-glow); }
+.stat::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
 .stat.red::before { background: linear-gradient(90deg, var(--red), transparent); }
 .stat.amber::before { background: linear-gradient(90deg, var(--amber), transparent); }
 .stat.cyan::before { background: linear-gradient(90deg, var(--cyan), transparent); }
 .stat.green::before { background: linear-gradient(90deg, var(--green), transparent); }
 .stat.purple::before { background: linear-gradient(90deg, var(--purple), transparent); }
+.stat .label { font-family: var(--mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--dim); margin-bottom: 6px; }
+.stat .value { font-family: var(--mono); font-size: 32px; font-weight: 700; line-height: 1; }
+.stat.red .value { color: var(--red); text-shadow: 0 0 20px rgba(255,23,68,0.3); }
+.stat.amber .value { color: var(--amber); text-shadow: 0 0 20px rgba(255,171,0,0.3); }
+.stat.cyan .value { color: var(--cyan); text-shadow: 0 0 20px rgba(0,229,255,0.3); }
+.stat.green .value { color: var(--green); text-shadow: 0 0 20px rgba(0,230,118,0.3); }
+.stat.purple .value { color: var(--purple); text-shadow: 0 0 20px rgba(213,0,249,0.3); }
+.stat .meta { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 4px; }
 
-.stat .label {
-    font-family: var(--mono);
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: var(--dim);
-    margin-bottom: 6px;
-}
+/* NAV */
+nav { display: flex; gap: 2px; margin-bottom: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 4px; }
+nav a { color: var(--dim); text-decoration: none; padding: 8px 20px; border-radius: 3px; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; transition: all 0.15s; }
+nav a:hover { color: var(--text); background: rgba(0,229,255,0.05); }
+nav a.active { color: var(--cyan); background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.2); text-shadow: 0 0 10px rgba(0,229,255,0.3); }
 
-.stat .value {
-    font-family: var(--mono);
-    font-size: 32px;
-    font-weight: 700;
-    line-height: 1;
-}
+/* PANELS */
+.panel { background: var(--card); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.panel-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); background: rgba(0,229,255,0.02); }
+.panel-title { font-family: var(--mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--cyan); display: flex; align-items: center; gap: 8px; }
+.panel-title::before { content: ''; width: 5px; height: 5px; background: var(--cyan); border-radius: 50%; box-shadow: 0 0 6px var(--cyan); }
+.panel-count { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+.panel-body { padding: 0; }
+.panel-divider { border-top: 1px solid var(--border); margin: 0; }
 
-.stat.red .value { color: var(--red); text-shadow: 0 0 20px rgba(255, 23, 68, 0.3); }
-.stat.amber .value { color: var(--amber); text-shadow: 0 0 20px rgba(255, 171, 0, 0.3); }
-.stat.cyan .value { color: var(--cyan); text-shadow: 0 0 20px rgba(0, 229, 255, 0.3); }
-.stat.green .value { color: var(--green); text-shadow: 0 0 20px rgba(0, 230, 118, 0.3); }
-.stat.purple .value { color: var(--purple); text-shadow: 0 0 20px rgba(213, 0, 249, 0.3); }
-
-.stat .meta {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--dim);
-    margin-top: 4px;
-}
-
-/* ---- NAVIGATION ---- */
-nav {
-    display: flex;
-    gap: 2px;
-    margin-bottom: 16px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 4px;
-    flex-wrap: wrap;
-}
-
-nav a {
-    color: var(--dim);
-    text-decoration: none;
-    padding: 8px 16px;
-    border-radius: 3px;
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    transition: all 0.15s;
-    position: relative;
-}
-
-nav a:hover {
-    color: var(--text);
-    background: rgba(0, 229, 255, 0.05);
-}
-
-nav a.active {
-    color: var(--cyan);
-    background: rgba(0, 229, 255, 0.1);
-    border: 1px solid rgba(0, 229, 255, 0.2);
-    text-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
-}
-
-/* ---- PANELS ---- */
-.panel {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    margin-bottom: 16px;
-    overflow: hidden;
-}
-
-.panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--border);
-    background: rgba(0, 229, 255, 0.02);
-}
-
-.panel-title {
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: var(--cyan);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.panel-title::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    background: var(--cyan);
-    border-radius: 50%;
-    box-shadow: 0 0 6px var(--cyan);
-    display: inline-block;
-}
-
-.panel-count {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--dim);
-}
-
-.panel-body {
-    padding: 0;
-}
-
-/* ---- TABLES ---- */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-}
-
-th {
-    text-align: left;
-    padding: 10px 16px;
-    background: rgba(0, 0, 0, 0.3);
-    color: var(--dim);
-    font-family: var(--mono);
-    font-weight: 600;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 1px solid var(--border);
-}
-
-td {
-    padding: 8px 16px;
-    border-bottom: 1px solid rgba(26, 37, 64, 0.5);
-    font-family: var(--mono);
-    font-size: 12px;
-}
-
+/* TABLES */
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { text-align: left; padding: 8px 12px; background: rgba(0,0,0,0.3); color: var(--dim); font-family: var(--mono); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); }
+td { padding: 6px 12px; border-bottom: 1px solid rgba(26,37,64,0.5); font-family: var(--mono); font-size: 11px; }
 tr:last-child td { border-bottom: none; }
-tr:hover td { background: rgba(0, 229, 255, 0.02); }
+tr:hover td { background: rgba(0,229,255,0.02); }
 
-/* Bar charts */
-.bar-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+/* Compact table for grid panels */
+.compact th { padding: 6px 10px; font-size: 9px; }
+.compact td { padding: 4px 10px; font-size: 10px; }
 
-.bar {
-    height: 4px;
-    border-radius: 2px;
-    min-width: 2px;
-    position: relative;
-}
-
-.bar.bar-red { background: linear-gradient(90deg, var(--red), var(--red-dim)); box-shadow: 0 0 8px rgba(255, 23, 68, 0.2); }
-.bar.bar-amber { background: linear-gradient(90deg, var(--amber), var(--amber-dim)); box-shadow: 0 0 8px rgba(255, 171, 0, 0.2); }
-.bar.bar-cyan { background: linear-gradient(90deg, var(--cyan), var(--cyan-dim)); box-shadow: 0 0 8px rgba(0, 229, 255, 0.2); }
-.bar.bar-green { background: linear-gradient(90deg, var(--green), var(--green-dim)); box-shadow: 0 0 8px rgba(0, 230, 118, 0.2); }
+/* Bars */
+.bar-container { display: flex; align-items: center; gap: 8px; }
+.bar { height: 4px; border-radius: 2px; min-width: 2px; }
+.bar.bar-red { background: linear-gradient(90deg, var(--red), var(--red-dim)); box-shadow: 0 0 8px rgba(255,23,68,0.2); }
+.bar.bar-amber { background: linear-gradient(90deg, var(--amber), var(--amber-dim)); box-shadow: 0 0 8px rgba(255,171,0,0.2); }
+.bar.bar-cyan { background: linear-gradient(90deg, var(--cyan), var(--cyan-dim)); box-shadow: 0 0 8px rgba(0,229,255,0.2); }
+.bar.bar-green { background: linear-gradient(90deg, var(--green), var(--green-dim)); box-shadow: 0 0 8px rgba(0,230,118,0.2); }
 
 /* Badges */
-.badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 3px;
-    font-family: var(--mono);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-}
-
-.badge-cc {
-    background: rgba(41, 121, 255, 0.1);
-    border: 1px solid rgba(41, 121, 255, 0.2);
-    color: var(--blue);
-}
-
-.badge-ip {
-    background: rgba(0, 229, 255, 0.05);
-    color: var(--cyan);
-}
-
-/* Credential colors */
+.badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.5px; }
+.badge-cc { background: rgba(41,121,255,0.1); border: 1px solid rgba(41,121,255,0.2); color: var(--blue); }
+.badge-ip { background: rgba(0,229,255,0.05); color: var(--cyan); }
 .cred-pass { color: var(--red); }
 .cred-user { color: var(--amber); }
+.att-badge { font-family: var(--mono); font-size: 10px; padding: 1px 6px; border-radius: 2px; background: rgba(213,0,249,0.1); color: var(--purple); }
+.delay-badge { font-family: var(--mono); font-size: 10px; padding: 1px 6px; border-radius: 2px; }
+.delay-low { background: rgba(0,230,118,0.1); color: var(--green); }
+.delay-med { background: rgba(255,171,0,0.1); color: var(--amber); }
+.delay-high { background: rgba(255,23,68,0.1); color: var(--red); }
 
-.scroll {
-    max-height: 600px;
-    overflow-y: auto;
-}
-
+.scroll { max-height: 400px; overflow-y: auto; }
 .scroll::-webkit-scrollbar { width: 6px; }
 .scroll::-webkit-scrollbar-track { background: var(--bg); }
 .scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 .scroll::-webkit-scrollbar-thumb:hover { background: var(--border-glow); }
 
-.empty {
-    color: var(--dim);
-    text-align: center;
-    padding: 60px 20px;
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 1px;
-}
+.empty { color: var(--dim); text-align: center; padding: 40px 20px; font-family: var(--mono); font-size: 11px; letter-spacing: 1px; }
+.empty::before { content: '[ ]'; display: block; font-size: 20px; margin-bottom: 8px; color: var(--border); }
 
-.empty::before {
-    content: '[ ]';
-    display: block;
-    font-size: 24px;
-    margin-bottom: 12px;
-    color: var(--border);
-}
+/* GRID LAYOUTS */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.grid-full { margin-bottom: 12px; }
 
-/* ---- OVERVIEW GRID ---- */
-.overview-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-
-/* ---- LIVE FEED (recent creds on overview) ---- */
-.feed-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 16px;
-    border-bottom: 1px solid rgba(26, 37, 64, 0.5);
-    font-family: var(--mono);
-    font-size: 11px;
-    transition: background 0.1s;
-}
-
-.feed-row:hover { background: rgba(0, 229, 255, 0.02); }
+/* FEED */
+.feed-row { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-bottom: 1px solid rgba(26,37,64,0.5); font-family: var(--mono); font-size: 10px; transition: background 0.1s; }
+.feed-row:hover { background: rgba(0,229,255,0.02); }
 .feed-row:last-child { border-bottom: none; }
-
-.feed-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--red);
-    box-shadow: 0 0 6px var(--red);
-    flex-shrink: 0;
-}
-
-.feed-time { color: var(--dim); min-width: 60px; }
-.feed-ip { color: var(--cyan); min-width: 120px; }
+.feed-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--red); box-shadow: 0 0 6px var(--red); flex-shrink: 0; }
+.feed-time { color: var(--dim); min-width: 55px; }
+.feed-ip { color: var(--cyan); min-width: 110px; }
 .feed-user { color: var(--amber); }
-.feed-arrow { color: var(--dim); margin: 0 4px; }
+.feed-arrow { color: var(--dim); margin: 0 2px; }
 .feed-pass { color: var(--red); }
 
-/* ---- FOOTER ---- */
-.footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px;
-    margin-top: 8px;
-    border-top: 1px solid var(--border);
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--dim);
-    letter-spacing: 0.5px;
-}
-
-.footer-status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--green);
-    box-shadow: 0 0 6px var(--green);
-    animation: status-blink 3s ease-in-out infinite;
-}
-
-@keyframes status-blink {
-    0%, 90%, 100% { opacity: 1; }
-    95% { opacity: 0.3; }
-}
-
-/* Delay indicator */
-.delay-badge {
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 1px 6px;
-    border-radius: 2px;
-}
-
-.delay-low { background: rgba(0, 230, 118, 0.1); color: var(--green); }
-.delay-med { background: rgba(255, 171, 0, 0.1); color: var(--amber); }
-.delay-high { background: rgba(255, 23, 68, 0.1); color: var(--red); }
-
-/* Attempt count badge */
-.att-badge {
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 1px 6px;
-    border-radius: 2px;
-    background: rgba(213, 0, 249, 0.1);
-    color: var(--purple);
-}
+/* FOOTER */
+.footer { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; margin-top: 8px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 10px; color: var(--dim); letter-spacing: 0.5px; }
+.footer-status { display: flex; align-items: center; gap: 6px; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); animation: status-blink 3s ease-in-out infinite; }
+@keyframes status-blink { 0%,90%,100% { opacity:1; } 95% { opacity:0.3; } }
 
 /* Responsive */
 @media (max-width: 900px) {
-    .overview-grid { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
     .header { flex-direction: column; gap: 12px; align-items: flex-start; }
     .header-right { width: 100%; justify-content: space-between; }
 }
-
 @media (max-width: 640px) {
     .wrap { padding: 8px; }
     .stats { grid-template-columns: 1fr 1fr; }
-    nav { flex-wrap: wrap; }
-    nav a { padding: 6px 10px; font-size: 10px; }
 }
 </style>
 </head>
@@ -716,9 +351,7 @@ tr:hover td { background: rgba(0, 229, 255, 0.02); }
             <div>ENTRIES <span class="val"><?php echo number_format(count($entries)); ?></span></div>
             <div>LAST EVENT <span class="val"><?php echo $last_ago; ?></span></div>
         </div>
-        <div class="threat-badge <?php echo $threat_class; ?>">
-            <?php echo $threat_level; ?>
-        </div>
+        <div class="threat-badge <?php echo $threat_class; ?>"><?php echo $threat_level; ?></div>
     </div>
 </div>
 
@@ -751,18 +384,10 @@ tr:hover td { background: rgba(0, 229, 255, 0.02); }
     </div>
 </div>
 
-<!-- NAV -->
+<!-- NAV: 3 tabs -->
 <?php
 $token_param = $dashboard_token !== '' ? '&token=' . urlencode($_GET['token'] ?? '') : '';
-$tabs = [
-    'overview'   => 'Overview',
-    'creds'      => 'Credentials',
-    'passwords'  => 'Passwords',
-    'usernames'  => 'Usernames',
-    'ips'        => 'Sources',
-    'countries'  => 'GeoINT',
-    'timeline'   => 'Timeline',
-];
+$tabs = ['overview' => 'Overview', 'intercepts' => 'Intercepts', 'intel' => 'Intel'];
 ?>
 <nav>
 <?php foreach ($tabs as $k => $v): ?>
@@ -770,13 +395,11 @@ $tabs = [
 <?php endforeach; ?>
 </nav>
 
-<!-- CONTENT -->
-
+<!-- ==================== OVERVIEW ==================== -->
 <?php if ($tab === 'overview'): ?>
 
-<div class="overview-grid">
-
-<!-- Top Usernames -->
+<!-- Row 1: Usernames + Passwords -->
+<div class="grid-2">
 <div class="panel">
     <div class="panel-header">
         <div class="panel-title">Target Usernames</div>
@@ -784,21 +407,15 @@ $tabs = [
     </div>
     <div class="panel-body">
 <?php if ($usernames): ?>
-<table>
-<tr><th>Username</th><th>Hits</th><th>Distribution</th></tr>
+<table class="compact"><tr><th>Username</th><th>Hits</th><th></th></tr>
 <?php $max = max($usernames); foreach (array_slice($usernames, 0, 10, true) as $u => $c): ?>
-<tr>
-    <td class="cred-user"><?php echo htmlspecialchars($u); ?></td>
-    <td><?php echo $c; ?></td>
-    <td><div class="bar-container"><div class="bar bar-amber" style="width:<?php echo round($c/$max*160); ?>px"></div></div></td>
-</tr>
+<tr><td class="cred-user"><?php echo htmlspecialchars($u); ?></td><td><?php echo $c; ?></td><td><div class="bar-container"><div class="bar bar-amber" style="width:<?php echo round($c/$max*120); ?>px"></div></div></td></tr>
 <?php endforeach; ?>
 </table>
-<?php else: ?><div class="empty">Awaiting threat data</div><?php endif; ?>
+<?php else: ?><div class="empty">Awaiting data</div><?php endif; ?>
     </div>
 </div>
 
-<!-- Top Passwords -->
 <div class="panel">
     <div class="panel-header">
         <div class="panel-title">Captured Passwords</div>
@@ -806,27 +423,77 @@ $tabs = [
     </div>
     <div class="panel-body">
 <?php if ($passwords): ?>
-<table>
-<tr><th>Password</th><th>Hits</th><th>Distribution</th></tr>
+<table class="compact"><tr><th>Password</th><th>Hits</th><th></th></tr>
 <?php $max = max($passwords); foreach (array_slice($passwords, 0, 10, true) as $p => $c): ?>
+<tr><td class="cred-pass"><?php echo htmlspecialchars($p); ?></td><td><?php echo $c; ?></td><td><div class="bar-container"><div class="bar bar-red" style="width:<?php echo round($c/$max*120); ?>px"></div></div></td></tr>
+<?php endforeach; ?>
+</table>
+<?php else: ?><div class="empty">Awaiting data</div><?php endif; ?>
+    </div>
+</div>
+</div>
+
+<!-- Row 2: Top IPs + Countries/Timeline combo -->
+<div class="grid-2">
+<div class="panel">
+    <div class="panel-header">
+        <div class="panel-title">Top Sources</div>
+        <div class="panel-count"><?php echo $unique_ips; ?> IPs</div>
+    </div>
+    <div class="panel-body">
+<?php if ($ips): ?>
+<table class="compact"><tr><th>IP</th><th>CC</th><th>Hits</th><th></th></tr>
+<?php $max = max($ips); foreach (array_slice($ips, 0, 10, true) as $ip => $c):
+$d = $ip_details[$ip] ?? []; ?>
 <tr>
-    <td class="cred-pass"><?php echo htmlspecialchars($p); ?></td>
+    <td class="badge-ip"><?php echo htmlspecialchars($ip); ?></td>
+    <td><span class="badge badge-cc"><?php echo htmlspecialchars($d['country'] ?? '??'); ?></span></td>
     <td><?php echo $c; ?></td>
-    <td><div class="bar-container"><div class="bar bar-red" style="width:<?php echo round($c/$max*160); ?>px"></div></div></td>
+    <td><div class="bar-container"><div class="bar bar-cyan" style="width:<?php echo round($c/$max*100); ?>px"></div></div></td>
 </tr>
 <?php endforeach; ?>
 </table>
-<?php else: ?><div class="empty">Awaiting threat data</div><?php endif; ?>
+<?php else: ?><div class="empty">Awaiting data</div><?php endif; ?>
     </div>
 </div>
 
+<div class="panel">
+    <div class="panel-header">
+        <div class="panel-title">GeoINT</div>
+        <div class="panel-count"><?php echo count($countries); ?> countries</div>
+    </div>
+    <div class="panel-body">
+<?php if ($countries): ?>
+<table class="compact"><tr><th>Country</th><th>Events</th><th></th></tr>
+<?php $max = max($countries); foreach (array_slice($countries, 0, 6, true) as $cc => $c): ?>
+<tr><td><span class="badge badge-cc"><?php echo htmlspecialchars($cc); ?></span></td><td><?php echo $c; ?></td><td><div class="bar-container"><div class="bar bar-green" style="width:<?php echo round($c/$max*100); ?>px"></div></div></td></tr>
+<?php endforeach; ?>
+</table>
+<?php else: ?><div class="empty">No geo data</div><?php endif; ?>
+
+<div class="panel-divider"></div>
+
+<div class="panel-header" style="border-bottom:1px solid var(--border);">
+    <div class="panel-title">Timeline</div>
+    <div class="panel-count">Last <?php echo count($recent_hours); ?>h</div>
+</div>
+<?php if ($recent_hours): ?>
+<table class="compact"><tr><th>Hour</th><th>Events</th><th></th></tr>
+<?php $max = max($recent_hours); foreach ($recent_hours as $h => $c): ?>
+<tr><td><?php echo htmlspecialchars(substr($h, 5)); ?></td><td><?php echo $c; ?></td><td><div class="bar-container"><div class="bar bar-cyan" style="width:<?php echo round($c/$max*100); ?>px"></div></div></td></tr>
+<?php endforeach; ?>
+</table>
+<?php else: ?><div class="empty">No data</div><?php endif; ?>
+    </div>
+</div>
 </div>
 
 <!-- Recent Activity Feed -->
+<div class="grid-full">
 <div class="panel">
     <div class="panel-header">
         <div class="panel-title">Recent Activity</div>
-        <div class="panel-count">Last <?php echo min(15, count($creds)); ?> credential captures</div>
+        <div class="panel-count">Last <?php echo min(15, count($creds)); ?> captures</div>
     </div>
     <div class="panel-body">
 <?php if ($creds):
@@ -849,19 +516,21 @@ foreach ($recent as $c): ?>
 else: ?><div class="empty">Awaiting threat data</div><?php endif; ?>
     </div>
 </div>
+</div>
 
-<?php elseif ($tab === 'creds'): ?>
+<!-- ==================== INTERCEPTS ==================== -->
+<?php elseif ($tab === 'intercepts'): ?>
 
+<div class="grid-full">
 <div class="panel">
     <div class="panel-header">
         <div class="panel-title">Credential Intercepts</div>
         <div class="panel-count"><?php echo count($creds); ?> pairs captured</div>
     </div>
     <div class="panel-body">
-    <div class="scroll">
+    <div class="scroll" style="max-height:700px;">
 <?php if ($creds): ?>
-<table>
-<tr><th>Timestamp</th><th>Source IP</th><th>Origin</th><th>Username</th><th>Password</th><th>Attempt</th><th>Tarpit</th></tr>
+<table><tr><th>Timestamp</th><th>Source IP</th><th>Origin</th><th>Username</th><th>Password</th><th>Attempt</th><th>Tarpit</th></tr>
 <?php foreach (array_reverse($creds) as $c): ?>
 <tr>
     <td><?php echo htmlspecialchars($c['ts']); ?></td>
@@ -878,69 +547,61 @@ else: ?><div class="empty">Awaiting threat data</div><?php endif; ?>
     </div>
     </div>
 </div>
+</div>
 
-<?php elseif ($tab === 'passwords'): ?>
+<!-- ==================== INTEL ==================== -->
+<?php elseif ($tab === 'intel'): ?>
 
+<!-- Passwords + Usernames side by side -->
+<div class="grid-2">
 <div class="panel">
     <div class="panel-header">
         <div class="panel-title">Password Intelligence</div>
-        <div class="panel-count"><?php echo count($passwords); ?> unique passwords</div>
+        <div class="panel-count"><?php echo count($passwords); ?> unique</div>
     </div>
     <div class="panel-body">
     <div class="scroll">
 <?php if ($passwords): ?>
-<table>
-<tr><th>Password</th><th>Frequency</th><th>Distribution</th></tr>
+<table class="compact"><tr><th>Password</th><th>Freq</th><th></th></tr>
 <?php $max = max($passwords); foreach ($passwords as $p => $c): ?>
-<tr>
-    <td class="cred-pass"><?php echo htmlspecialchars($p); ?></td>
-    <td><?php echo $c; ?></td>
-    <td><div class="bar-container"><div class="bar bar-red" style="width:<?php echo round($c/$max*250); ?>px"></div></div></td>
-</tr>
+<tr><td class="cred-pass"><?php echo htmlspecialchars($p); ?></td><td><?php echo $c; ?></td><td><div class="bar-container"><div class="bar bar-red" style="width:<?php echo round($c/$max*140); ?>px"></div></div></td></tr>
 <?php endforeach; ?>
 </table>
-<?php else: ?><div class="empty">No passwords captured</div><?php endif; ?>
+<?php else: ?><div class="empty">No passwords</div><?php endif; ?>
     </div>
     </div>
 </div>
-
-<?php elseif ($tab === 'usernames'): ?>
 
 <div class="panel">
     <div class="panel-header">
         <div class="panel-title">Username Enumeration</div>
-        <div class="panel-count"><?php echo count($usernames); ?> unique usernames</div>
+        <div class="panel-count"><?php echo count($usernames); ?> unique</div>
     </div>
     <div class="panel-body">
     <div class="scroll">
 <?php if ($usernames): ?>
-<table>
-<tr><th>Username</th><th>Frequency</th><th>Distribution</th></tr>
+<table class="compact"><tr><th>Username</th><th>Freq</th><th></th></tr>
 <?php $max = max($usernames); foreach ($usernames as $u => $c): ?>
-<tr>
-    <td class="cred-user"><?php echo htmlspecialchars($u); ?></td>
-    <td><?php echo $c; ?></td>
-    <td><div class="bar-container"><div class="bar bar-amber" style="width:<?php echo round($c/$max*250); ?>px"></div></div></td>
-</tr>
+<tr><td class="cred-user"><?php echo htmlspecialchars($u); ?></td><td><?php echo $c; ?></td><td><div class="bar-container"><div class="bar bar-amber" style="width:<?php echo round($c/$max*140); ?>px"></div></div></td></tr>
 <?php endforeach; ?>
 </table>
-<?php else: ?><div class="empty">No usernames captured</div><?php endif; ?>
+<?php else: ?><div class="empty">No usernames</div><?php endif; ?>
     </div>
     </div>
 </div>
+</div>
 
-<?php elseif ($tab === 'ips'): ?>
-
+<!-- Full IP table -->
+<div class="grid-full">
 <div class="panel">
     <div class="panel-header">
-        <div class="panel-title">Threat Sources</div>
-        <div class="panel-count"><?php echo $unique_ips; ?> unique IPs</div>
+        <div class="panel-title">All Threat Sources</div>
+        <div class="panel-count"><?php echo $unique_ips; ?> IPs</div>
     </div>
     <div class="panel-body">
     <div class="scroll">
 <?php if ($ips): ?>
-<table>
-<tr><th>Source IP</th><th>Origin</th><th>Hits</th><th>First Contact</th><th>Last Contact</th><th>Activity</th></tr>
+<table><tr><th>Source IP</th><th>Origin</th><th>Hits</th><th>First Contact</th><th>Last Contact</th><th>Activity</th></tr>
 <?php $max = max($ips); foreach ($ips as $ip => $c):
 $d = $ip_details[$ip] ?? []; ?>
 <tr>
@@ -953,57 +614,49 @@ $d = $ip_details[$ip] ?? []; ?>
 </tr>
 <?php endforeach; ?>
 </table>
-<?php else: ?><div class="empty">No threat sources identified</div><?php endif; ?>
+<?php else: ?><div class="empty">No sources</div><?php endif; ?>
     </div>
     </div>
 </div>
+</div>
 
-<?php elseif ($tab === 'countries'): ?>
-
+<!-- Countries + Timeline side by side -->
+<div class="grid-2">
 <div class="panel">
     <div class="panel-header">
         <div class="panel-title">Geographic Intelligence</div>
-        <div class="panel-count"><?php echo count($countries); ?> countries identified</div>
+        <div class="panel-count"><?php echo count($countries); ?> countries</div>
     </div>
     <div class="panel-body">
+    <div class="scroll">
 <?php if ($countries): ?>
-<table>
-<tr><th>Country Code</th><th>Events</th><th>Distribution</th></tr>
+<table class="compact"><tr><th>Country</th><th>Events</th><th></th></tr>
 <?php $max = max($countries); foreach ($countries as $cc => $c): ?>
-<tr>
-    <td><span class="badge badge-cc"><?php echo htmlspecialchars($cc); ?></span></td>
-    <td><?php echo $c; ?></td>
-    <td><div class="bar-container"><div class="bar bar-green" style="width:<?php echo round($c/$max*250); ?>px"></div></div></td>
-</tr>
+<tr><td><span class="badge badge-cc"><?php echo htmlspecialchars($cc); ?></span></td><td><?php echo $c; ?></td><td><div class="bar-container"><div class="bar bar-green" style="width:<?php echo round($c/$max*140); ?>px"></div></div></td></tr>
 <?php endforeach; ?>
 </table>
-<?php else: ?><div class="empty">No geographic data // requires Cloudflare headers</div><?php endif; ?>
+<?php else: ?><div class="empty">No geo data</div><?php endif; ?>
+    </div>
     </div>
 </div>
-
-<?php elseif ($tab === 'timeline'): ?>
 
 <div class="panel">
     <div class="panel-header">
         <div class="panel-title">Attack Timeline</div>
-        <div class="panel-count">Hourly event distribution</div>
+        <div class="panel-count">Hourly distribution</div>
     </div>
     <div class="panel-body">
     <div class="scroll">
 <?php if ($hours): ?>
-<table>
-<tr><th>Hour (UTC)</th><th>Events</th><th>Activity</th></tr>
+<table class="compact"><tr><th>Hour</th><th>Events</th><th></th></tr>
 <?php $max = max($hours); foreach ($hours as $h => $c): ?>
-<tr>
-    <td><?php echo htmlspecialchars($h); ?></td>
-    <td><?php echo $c; ?></td>
-    <td><div class="bar-container"><div class="bar bar-cyan" style="width:<?php echo round($c/$max*350); ?>px"></div></div></td>
-</tr>
+<tr><td><?php echo htmlspecialchars($h); ?></td><td><?php echo $c; ?></td><td><div class="bar-container"><div class="bar bar-cyan" style="width:<?php echo round($c/$max*140); ?>px"></div></div></td></tr>
 <?php endforeach; ?>
 </table>
-<?php else: ?><div class="empty">No temporal data collected</div><?php endif; ?>
+<?php else: ?><div class="empty">No data</div><?php endif; ?>
     </div>
     </div>
+</div>
 </div>
 
 <?php endif; ?>
@@ -1014,9 +667,7 @@ $d = $ip_details[$ip] ?? []; ?>
         <div class="status-dot"></div>
         TRAP ACTIVE // MONITORING
     </div>
-    <div>
-        pitcherplant // <?php echo date('Y-m-d H:i:s T'); ?>
-    </div>
+    <div>pitcherplant // <?php echo date('Y-m-d H:i:s T'); ?></div>
 </div>
 
 </div>
