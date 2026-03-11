@@ -8,7 +8,7 @@ Your real login lives at a hidden URL (via [WPS Hide Login](https://wordpress.or
 
 ## How it works
 
-1. Apache rewrite rules redirect unauthenticated requests to `/wp-login.php` and `/wp-admin` to `wp-trap.php`
+1. Web server rewrite rules (nginx or Apache) redirect unauthenticated requests to `/wp-login.php` and `/wp-admin` to `wp-trap.php`
 2. The fake login page looks identical to a real WordPress login (same CSS, same error messages, same headers)
 3. Each login attempt is logged to two files:
    - Simple log for fail2ban: `[timestamp] HONEYPOT: IP - attempt N - user=X`
@@ -115,11 +115,13 @@ GET requests (reconnaissance) are also logged with URI, headers, and country.
 ## Requirements
 
 - PHP 5.4+
-- Apache 2.4+ with `mod_rewrite`
+- nginx or Apache 2.4+ with `mod_rewrite`
 - fail2ban
 - iptables (for banning)
 - Python 3 (for the intel viewer)
 - Cloudflare (optional, for country-level geo data)
+
+The Docker image uses nginx + php-fpm on Alpine for a minimal footprint (~60MB).
 
 ## File layout
 
@@ -135,8 +137,11 @@ pitcherplant/
 │   ├── jail.d/wp-honeypot.conf
 │   └── jail.local
 ├── apache/
-│   ├── honeypot-rewrite.conf   # Rewrite rules for .htaccess
+│   ├── honeypot-rewrite.conf   # Rewrite rules for .htaccess (Apache installs)
 │   └── security-headers.conf   # Bonus security headers
+├── docker/
+│   ├── nginx.conf              # nginx site config (used by Docker image)
+│   └── entrypoint.sh           # Container entrypoint
 └── tools/
     └── honeypot-intel.sh       # Intelligence viewer
 ```
