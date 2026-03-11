@@ -1,32 +1,31 @@
-FROM php:8.3-apache
+FROM php:8.3-fpm-alpine
 
-# Enable mod_rewrite
-RUN a2enmod rewrite
+# Install nginx
+RUN apk add --no-cache nginx
 
 # Create log and state directories
-RUN mkdir -p /var/lib/wp-honeypot \
+RUN mkdir -p /var/lib/wp-honeypot /run/nginx \
     && touch /var/log/wp-honeypot.log /var/log/wp-honeypot-intel.jsonl \
     && chown www-data:www-data /var/lib/wp-honeypot /var/log/wp-honeypot.log /var/log/wp-honeypot-intel.jsonl \
     && chmod 700 /var/lib/wp-honeypot \
     && chmod 640 /var/log/wp-honeypot.log /var/log/wp-honeypot-intel.jsonl
 
+# Copy nginx config
+COPY docker/nginx.conf /etc/nginx/http.d/default.conf
+
 # Copy trap files
 COPY trap/wp-trap.php /var/www/html/wp-trap.php
 COPY trap/wp-trap-config.php /var/www/html/wp-trap-config.php
-COPY apache/honeypot-rewrite.conf /tmp/honeypot-rewrite.conf
 
-# Build .htaccess from rewrite rules
-RUN cp /tmp/honeypot-rewrite.conf /var/www/html/.htaccess \
-    && rm /tmp/honeypot-rewrite.conf
-
-# Apache: allow .htaccess overrides
-RUN sed -i '/<Directory \/var\/www\/>/,/<\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
+# Copy dashboard
+COPY tools/dashboard.php /var/www/html/dashboard/index.php
 
 # Set ownership
 RUN chown -R www-data:www-data /var/www/html
 
-# Optional: copy dashboard
-COPY tools/dashboard.php /var/www/html/dashboard/index.php
-RUN chown -R www-data:www-data /var/www/html/dashboard
+# Entrypoint: run php-fpm + nginx
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
+CMD ["/entrypoint.sh"]
