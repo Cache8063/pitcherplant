@@ -1,0 +1,8 @@
+.git
+.gitignore
+config.env
+config.env.example
+install.sh
+fail2ban/
+README.md
+LICENSE
