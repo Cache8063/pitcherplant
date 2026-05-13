@@ -61,6 +61,8 @@ The container exposes `/health` (200 OK, no PHP) for `docker`/`k8s` healthchecks
 
 ## Configuration
 
+### Installer config (`config.env`)
+
 Copy `config.env.example` to `config.env`:
 
 | Variable | Default | Description |
@@ -69,11 +71,23 @@ Copy `config.env.example` to `config.env`:
 | `SITE_URL` | `https://example.com` | Used in fake WP headers |
 | `LOG_FILE` | `/var/log/wp-honeypot.log` | fail2ban watches this |
 | `INTEL_FILE` | `/var/log/wp-honeypot-intel.jsonl` | Full intelligence log |
-| `STATE_DIR` | `/tmp/wp-honeypot` | Per-IP state tracking |
+| `STATE_DIR` | `/var/lib/wp-honeypot` | Per-IP state tracking |
 | `MAX_DELAY` | `30` | Maximum tarpit delay (seconds) |
 | `F2B_MAXRETRY` | `20` | Attempts before ban |
 | `F2B_FINDTIME` | `86400` | Detection window (seconds) |
 | `F2B_BANTIME` | `2592000` | Ban duration (30 days) |
+
+### Runtime config (`wp-trap-config.php`)
+
+These live in the deployed PHP config file. `install.sh` writes the first
+group from `config.env`; edit the file in place to tune the rest.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `$trusted_proxies` | loopback + CF v4/v6 | CIDRs whose `REMOTE_ADDR` can set forwarded IP headers. Anything outside the list falls back to `REMOTE_ADDR`. |
+| `$max_field_len` | `256` | Bytes kept from submitted user/pass/redirect before logging. |
+| `$dashboard_token` | `''` (closed) | Required token for `/dashboard/`. Empty value = dashboard returns 403. |
+| `$dashboard_max_entries` | `5000` | Tail-window size for the dashboard. |
 
 ## Intelligence viewer
 
@@ -137,23 +151,27 @@ The Docker image uses nginx + php-fpm on Alpine for a minimal footprint (~60MB).
 
 ```
 pitcherplant/
-├── install.sh                  # Deployment script
-├── config.env.example          # Configuration template
+├── install.sh                       # Deployment script (local / SSH / pct)
+├── config.env.example               # Installer config template
+├── Dockerfile                       # php-fpm + nginx on Alpine (digest-pinned)
 ├── trap/
-│   ├── wp-trap.php             # Honeypot script (goes in WP root)
-│   └── wp-trap-config.php      # Config template (goes in WP root)
+│   ├── wp-trap.php                  # Honeypot script (goes in WP root)
+│   └── wp-trap-config.php           # Runtime config template (goes in WP root)
 ├── fail2ban/
 │   ├── filter.d/wp-honeypot.conf
 │   ├── jail.d/wp-honeypot.conf
-│   └── jail.local
+│   ├── jail.local
+│   ├── logrotate-wp-honeypot        # /etc/logrotate.d/wp-honeypot (daily, 14 keeps)
+│   └── tmpfiles-wp-honeypot.conf    # /etc/tmpfiles.d/wp-honeypot.conf (state-file GC, 30d)
 ├── apache/
-│   ├── honeypot-rewrite.conf   # Rewrite rules for .htaccess (Apache installs)
-│   └── security-headers.conf   # Bonus security headers
+│   ├── honeypot-rewrite.conf        # .htaccess rewrites (cookie-anchored)
+│   └── security-headers.conf        # Bonus security headers
 ├── docker/
-│   ├── nginx.conf              # nginx site config (used by Docker image)
-│   └── entrypoint.sh           # Container entrypoint
+│   ├── nginx.conf                   # nginx site config (cookie-anchored, /health)
+│   └── entrypoint.sh                # php-fpm + nginx with wait -n
 └── tools/
-    └── honeypot-intel.sh       # Intelligence viewer
+    ├── dashboard.php                # Web-based intel viewer (token-gated)
+    └── honeypot-intel.sh            # CLI intel viewer
 ```
 
 ## Math
