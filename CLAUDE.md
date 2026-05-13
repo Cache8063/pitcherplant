@@ -46,15 +46,10 @@ guarantees:
 
 ## Testing
 
-The local dev box typically has no PHP. To lint + run e2e:
-
-```bash
-# Lint
-ssh root@pv4.ts.bkb.cx 'pct push 550 <file> /tmp/<file> && pct exec 550 -- php -l /tmp/<file>'
-
-# E2E pattern: spin up `php -S 127.0.0.1:<port> wp-trap.php` inside LXC 550,
-# point curl at it, assert on /tmp/honey.jsonl. Always clean /tmp/ after.
-```
+If the dev box has no PHP, the e2e pattern is: ship the files to any host
+with PHP 7+ installed (a throwaway container or LXC works), `php -l` for
+syntax, then `php -S 127.0.0.1:<port> wp-trap.php` and curl-driven assertions
+against the JSONL output. Always clean `/tmp/` afterwards.
 
 Container build verification needs Docker, which isn't on the local box — CI
 runs the multi-arch + Trivy build on push, so push to a branch first if you
@@ -85,8 +80,6 @@ Docker, or provision a dedicated `pm.max_children` pool when co-locating.
 
 ## Remotes
 
-- `origin` → Gitea (`gitea.ts.bkb.cx/Arcnode.xyz/pitcherplant`) — primary
-- `github` → `Cache8063/pitcherplant` — mirror; CI lives here (Trivy + multi-arch)
-- `tangled` → `bkb.arcnode.xyz/pitcherplant` — atproto mirror
-
-Push to all three after merges to main.
+Multi-remote setup. `git remote -v` for the current URLs; the GitHub mirror
+is where CI runs (Trivy + multi-arch + SBOM). Push to every remote after
+merges to main.

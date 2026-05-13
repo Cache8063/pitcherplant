@@ -1,8 +1,13 @@
 .git
 .gitignore
+.github/
+.dockerignore
 config.env
 config.env.example
 install.sh
 fail2ban/
+screenshots/
 README.md
+CHANGELOG.md
+CLAUDE.md
 LICENSE
