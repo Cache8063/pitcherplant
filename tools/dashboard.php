@@ -12,6 +12,7 @@
 $intel_file = '/var/log/wp-honeypot-intel.jsonl';
 $site_name  = 'WordPress';
 $dashboard_token = '';
+$dashboard_max_entries = 5000;
 
 $local_config = __DIR__ . '/config.php';
 $trap_config  = __DIR__ . '/../trap/wp-trap-config.php';
@@ -22,21 +23,61 @@ if (file_exists($local_config)) {
 }
 
 // --- Auth check ---
-if ($dashboard_token !== '' && ($_GET['token'] ?? '') !== $dashboard_token) {
+// Fail closed: an unset token means the dashboard is off, not open.
+if ($dashboard_token === '' || !hash_equals($dashboard_token, (string)($_GET['token'] ?? ''))) {
     http_response_code(403);
     echo 'Forbidden';
     exit;
 }
 
-// --- Parse log ---
+// --- Parse log (tail-bounded) ---
+// Read the last N lines from the JSONL by seeking from EOF in chunks.
+// Keeps the dashboard responsive even when the log grows past memory.
+function tail_jsonl($file, $n) {
+    $out = ['lines' => [], 'total_estimate' => 0];
+    $fp = @fopen($file, 'rb');
+    if (!$fp) return $out;
+    fseek($fp, 0, SEEK_END);
+    $size = ftell($fp);
+    if ($size === 0) { fclose($fp); return $out; }
+
+    $chunk = 65536;
+    $pos = $size;
+    $buf = '';
+    $found_newlines = 0;
+    while ($pos > 0 && $found_newlines <= $n) {
+        $read = (int)min($chunk, $pos);
+        $pos -= $read;
+        fseek($fp, $pos);
+        $part = fread($fp, $read);
+        $buf = $part . $buf;
+        $found_newlines = substr_count($buf, "\n");
+    }
+    fclose($fp);
+
+    $lines = preg_split("/\r?\n/", $buf, -1, PREG_SPLIT_NO_EMPTY);
+    // If we didn't reach the start of file, drop the first (likely partial) line.
+    if ($pos > 0 && count($lines)) array_shift($lines);
+    $out['lines'] = array_slice($lines, -$n);
+    // Cheap total-entries estimate: full bytes / avg line bytes from what we sampled.
+    $sampled_bytes = $size - $pos;
+    $sampled_lines = max(1, count($lines));
+    $out['total_estimate'] = $sampled_bytes > 0
+        ? (int)round($size / ($sampled_bytes / $sampled_lines))
+        : $sampled_lines;
+    return $out;
+}
+
 $entries = [];
+$tail = ['total_estimate' => 0, 'lines' => []];
 if (file_exists($intel_file)) {
-    $lines = file($intel_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
+    $tail = tail_jsonl($intel_file, $dashboard_max_entries);
+    foreach ($tail['lines'] as $line) {
         $d = json_decode($line, true);
         if ($d) $entries[] = $d;
     }
 }
+$truncated = $tail['total_estimate'] > count($entries);
 
 // --- Compute stats ---
 $total_attempts = 0;
@@ -348,7 +389,7 @@ tr:hover td { background: rgba(0,229,255,0.02); }
     </div>
     <div class="header-right">
         <div class="header-meta">
-            <div>ENTRIES <span class="val"><?php echo number_format(count($entries)); ?></span></div>
+            <div>ENTRIES <span class="val"><?php echo number_format(count($entries)); ?><?php if ($truncated): ?> / ~<?php echo number_format($tail['total_estimate']); ?><?php endif; ?></span></div>
             <div>LAST EVENT <span class="val"><?php echo $last_ago; ?></span></div>
         </div>
         <div class="threat-badge <?php echo $threat_class; ?>"><?php echo $threat_level; ?></div>

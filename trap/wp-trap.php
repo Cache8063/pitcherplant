@@ -24,13 +24,44 @@ if (file_exists($config_file)) {
     $state_dir  = '/tmp/wp-honeypot';
     $max_delay  = 30;
 }
+$max_field_len   = $max_field_len ?? 256;
+$trusted_proxies = $trusted_proxies ?? ['127.0.0.1/32', '::1/128'];
 
 // --- Resolve real IP ---
-$ip = $_SERVER['REMOTE_ADDR'];
-if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-    $ip = $_SERVER['HTTP_CF_CONNECTING_IP'];
-} elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-    $ip = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0];
+// Only honor forwarded headers when REMOTE_ADDR is a known proxy. Otherwise
+// an attacker can spoof CF-Connecting-IP and have fail2ban ban an innocent.
+function ip_in_cidr($ip, $cidr) {
+    if (strpos($cidr, '/') === false) $cidr .= '/32';
+    list($subnet, $bits) = explode('/', $cidr, 2);
+    $ip_bin = @inet_pton($ip);
+    $sub_bin = @inet_pton($subnet);
+    if ($ip_bin === false || $sub_bin === false || strlen($ip_bin) !== strlen($sub_bin)) {
+        return false;
+    }
+    $bits = (int)$bits;
+    $bytes = intdiv($bits, 8);
+    $rem = $bits % 8;
+    if ($bytes && substr($ip_bin, 0, $bytes) !== substr($sub_bin, 0, $bytes)) {
+        return false;
+    }
+    if ($rem === 0) return true;
+    $mask = chr((0xff << (8 - $rem)) & 0xff);
+    return (ord($ip_bin[$bytes]) & ord($mask)) === (ord($sub_bin[$bytes]) & ord($mask));
+}
+function is_trusted_proxy($ip, $cidrs) {
+    foreach ($cidrs as $cidr) {
+        if (ip_in_cidr($ip, $cidr)) return true;
+    }
+    return false;
+}
+
+$ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+if (is_trusted_proxy($ip, $trusted_proxies)) {
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        $ip = $_SERVER['HTTP_CF_CONNECTING_IP'];
+    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $ip = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0];
+    }
 }
 $ip = trim($ip);
 
@@ -68,10 +99,10 @@ function get_interesting_headers() {
 // --- Handle POST (login attempt) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $attempts++;
-    $submitted_user = $_POST['log'] ?? '';
-    $submitted_pass = $_POST['pwd'] ?? '';
+    $submitted_user = substr($_POST['log'] ?? '', 0, $max_field_len);
+    $submitted_pass = substr($_POST['pwd'] ?? '', 0, $max_field_len);
     $remember_me    = isset($_POST['rememberme']);
-    $redirect_to    = $_POST['redirect_to'] ?? '';
+    $redirect_to    = substr($_POST['redirect_to'] ?? '', 0, $max_field_len);
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
     $headers = get_interesting_headers();
 
@@ -116,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'last_user'   => substr($submitted_user, 0, 64),
         'creds_tried' => array_slice($creds_tried, -100), // keep last 100
     ];
-    file_put_contents($state_file, json_encode($state, JSON_PRETTY_PRINT));
+    file_put_contents($state_file, json_encode($state, JSON_PRETTY_PRINT), LOCK_EX);
 
     // Progressive tarpit: 2, 4, 6... up to max_delay
     $delay = min($attempts * 2, $max_delay);

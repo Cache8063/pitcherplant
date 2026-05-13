@@ -1,7 +1,9 @@
-FROM php:8.3-fpm-alpine
+# Pinned to a digest for reproducible builds. Refresh on each PHP 8.3.x bump:
+#   docker pull php:8.3-fpm-alpine && docker inspect --format='{{index .RepoDigests 0}}' php:8.3-fpm-alpine
+FROM php:8.3-fpm-alpine@sha256:1b440e9804209491713035c4859d434f55e5cf8b0fb8c88a58f2f73d8e18b420
 
-# Install nginx
-RUN apk add --no-cache nginx
+# Install nginx + wget (for HEALTHCHECK)
+RUN apk add --no-cache nginx wget
 
 # Create log and state directories
 RUN mkdir -p /var/lib/wp-honeypot /run/nginx \
@@ -28,4 +30,6 @@ COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -qO- http://127.0.0.1/health >/dev/null || exit 1
 CMD ["/entrypoint.sh"]

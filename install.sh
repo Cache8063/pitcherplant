@@ -169,6 +169,15 @@ fi
 info "Restarting fail2ban..."
 run "systemctl restart fail2ban"
 
+# --- 5b. Deploy logrotate + tmpfiles GC ---
+info "Deploying logrotate + tmpfiles configs..."
+copy_file "$SCRIPT_DIR/fail2ban/logrotate-wp-honeypot" "/etc/logrotate.d/wp-honeypot"
+
+# Substitute the configured $state_dir into the tmpfiles template
+TMPFILES_CONF=$(sed "s|__STATE_DIR__|$STATE_DIR|g" "$SCRIPT_DIR/fail2ban/tmpfiles-wp-honeypot.conf")
+write_file "$TMPFILES_CONF" "/etc/tmpfiles.d/wp-honeypot.conf"
+run "systemd-tmpfiles --create /etc/tmpfiles.d/wp-honeypot.conf >/dev/null 2>&1 || true"
+
 # --- 6. Inject rewrite rules into .htaccess ---
 info "Checking .htaccess..."
 HTACCESS="$WP_ROOT/.htaccess"

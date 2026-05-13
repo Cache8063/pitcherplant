@@ -1,0 +1,12 @@
+/var/log/wp-honeypot.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 www-data www-data
+    postrotate
+        /usr/bin/fail2ban-client reload wp-honeypot >/dev/null 2>&1 || true
+    endscript
+}
