@@ -3,6 +3,23 @@
 ## Unreleased
 
 ### Security
+- **fail2ban log injection fixed.** The submitted username is now stripped of
+  CR/LF and other control characters (`log_safe()`) before it is written to
+  the plain-text fail2ban log. Previously a POST with a username such as
+  `x\nHONEYPOT: 8.8.8.8 - attempt` forged a second log line that fail2ban
+  parsed as a real attempt, letting an attacker ban any IP of their choosing
+  (admin, DNS resolvers, Cloudflare ranges) — a remote denial-of-service. The
+  full, unmodified username is still captured in the JSONL intel log.
+- **X-Forwarded-For client-IP selection hardened.** When the request comes
+  through a trusted proxy, the client IP is now taken as the right-most
+  address in the `X-Forwarded-For` chain that is not itself a trusted proxy,
+  instead of the fully attacker-controlled left-most entry. Combined with the
+  validity guard below, this closes a second path to making fail2ban ban an
+  arbitrary third party on non-Cloudflare reverse-proxy deployments. This
+  strengthens the existing trusted-proxy gate (threat-model item #1).
+- Resolved client IPs are now validated with `filter_var(..., FILTER_VALIDATE_IP)`;
+  unparseable values fall back to the socket peer (`REMOTE_ADDR`), so state
+  files, logs, and bans are only ever keyed off a syntactically valid address.
 - Forwarded IP headers (`CF-Connecting-IP`, `X-Forwarded-For`) are now only
   trusted when `REMOTE_ADDR` is in `$trusted_proxies` (config-driven; ships
   with loopback + Cloudflare v4/v6 ranges). Previously, an attacker reaching

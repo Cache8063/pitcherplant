@@ -143,6 +143,8 @@ The Docker image uses nginx + php-fpm on Alpine for a minimal footprint (~60MB).
 
 `wp-trap.php` only honors `CF-Connecting-IP` / `X-Forwarded-For` when `REMOTE_ADDR` is in `$trusted_proxies`. The shipped config trusts loopback + the published Cloudflare ranges. If you front the trap with a different reverse proxy, add its CIDR; otherwise attackers can spoof the forwarded header and have fail2ban ban the wrong IP. Refresh the Cloudflare ranges from https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6 when they change.
 
+When an `X-Forwarded-For` chain is present, the client IP is taken as the **right-most** address that is not itself a trusted proxy — the left-most entry is attacker-controlled and is never trusted. The resolved IP is validated before it is used to key state files, logs, or bans. Because that IP is what fail2ban acts on, the username written to the simple log is also stripped of control characters so a crafted login can't forge a log line and get an arbitrary IP banned.
+
 ### Co-locating with WordPress (install.sh path)
 
 `install.sh` drops the trap next to WordPress on the host's PHP-FPM pool. Under a parallel-burst attack the 30s tarpit `sleep()` can pin every worker and DoS the real site through the trap. If that's a concern, provision a dedicated FPM pool for the trap with its own `pm.max_children` so worker exhaustion stays local. The Docker path runs an isolated FPM pool by default and is unaffected.

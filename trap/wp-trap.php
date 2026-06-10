@@ -55,15 +55,42 @@ function is_trusted_proxy($ip, $cidrs) {
     return false;
 }
 
-$ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-if (is_trusted_proxy($ip, $trusted_proxies)) {
-    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-        $ip = $_SERVER['HTTP_CF_CONNECTING_IP'];
+// Pick the right-most address in an X-Forwarded-For chain that is NOT one of
+// our own trusted proxies. The left-most entry is fully attacker-controlled
+// (a client can prepend "X-Forwarded-For: 8.8.8.8" and the proxy appends the
+// real IP after it), so trusting it would let an attacker make fail2ban ban
+// an arbitrary third party. Walking from the right past known proxies yields
+// the closest address the trusted infrastructure actually observed.
+function rightmost_untrusted_ip($xff, $cidrs) {
+    $parts = array_reverse(array_map('trim', explode(',', $xff)));
+    foreach ($parts as $candidate) {
+        if ($candidate === '') continue;
+        if (filter_var($candidate, FILTER_VALIDATE_IP) === false) continue;
+        if (!is_trusted_proxy($candidate, $cidrs)) {
+            return $candidate;
+        }
+    }
+    return null;
+}
+
+$remote = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+$ip = $remote;
+if (is_trusted_proxy($remote, $trusted_proxies)) {
+    $cf = trim($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '');
+    if ($cf !== '' && filter_var($cf, FILTER_VALIDATE_IP) !== false) {
+        // Cloudflare sets this to the single real client IP; trust it.
+        $ip = $cf;
     } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $ip = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0];
+        $candidate = rightmost_untrusted_ip($_SERVER['HTTP_X_FORWARDED_FOR'], $trusted_proxies);
+        if ($candidate !== null) $ip = $candidate;
     }
 }
 $ip = trim($ip);
+// Final guard: only ever key state/logs/bans off a syntactically valid IP.
+// If header parsing produced garbage, fall back to the socket peer.
+if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+    $ip = filter_var($remote, FILTER_VALIDATE_IP) !== false ? $remote : '0.0.0.0';
+}
 
 // --- State tracking per IP ---
 if (!is_dir($state_dir)) mkdir($state_dir, 0700, true);
@@ -76,6 +103,16 @@ $creds_tried = $state['creds_tried'] ?? [];
 $error_msg = '';
 $show_expired = false;
 $submitted_user = '';
+
+// Strip CR/LF and other control characters before writing a value into the
+// plain-text fail2ban log. POST bodies can contain newlines, and the filter
+// matches "HONEYPOT: <HOST> - attempt" anywhere in the file — so an unescaped
+// username like "x\nHONEYPOT: 8.8.8.8 - attempt" would forge a second log
+// line and make fail2ban ban an attacker-chosen IP. The full, unmodified
+// username is still captured in the JSONL intel log (json_encode escapes it).
+function log_safe($s) {
+    return preg_replace('/[\x00-\x1f\x7f]/', '', (string)$s);
+}
 
 // --- Collect headers for intel ---
 function get_interesting_headers() {
@@ -116,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         date('Y-m-d H:i:s'),
         $ip,
         $attempts,
-        substr($submitted_user, 0, 64)
+        log_safe(substr($submitted_user, 0, 64))
     );
     file_put_contents($log_file, $log_line, FILE_APPEND | LOCK_EX);
 
