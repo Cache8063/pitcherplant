@@ -32,14 +32,28 @@ install.sh                — three deploy modes: --local, --ssh, --pct
 
 ## Threat model crib
 
-Two ways an attacker can defeat the honeypot — both currently mitigated, but
-any future change to IP handling or cookie matching should preserve these
-guarantees:
+Three ways an attacker can turn the honeypot against innocents — all
+currently mitigated, but any future change to IP handling, the fail2ban
+log format, or cookie matching MUST preserve these guarantees:
 
 1. **Spoofed `CF-Connecting-IP` / `X-Forwarded-For`** → fail2ban bans the
-   wrong IP. Mitigation: `is_trusted_proxy()` gates forwarded headers on
-   `REMOTE_ADDR` being in `$trusted_proxies`.
-2. **Cookie-substring bypass** — a non-WP cookie whose value contains
+   wrong IP. Mitigations, all of which must stay in place:
+   - `is_trusted_proxy()` gates forwarded headers on `REMOTE_ADDR` being in
+     `$trusted_proxies`.
+   - When trusted, the client IP is the **right-most** XFF entry that is not
+     itself a trusted proxy (`rightmost_untrusted_ip()`) — never the
+     attacker-controlled left-most one. `CF-Connecting-IP` is preferred since
+     Cloudflare sets it to the single real client IP.
+   - The final IP is validated with `FILTER_VALIDATE_IP`; garbage falls back
+     to `REMOTE_ADDR`. State files, logs, and bans only ever key off a valid IP.
+2. **fail2ban log injection** — the simple log is plain text and the filter
+   matches `HONEYPOT: <HOST> - attempt` per line, so any attacker-controlled
+   value written to it must be free of CR/LF. The username is the only such
+   field and is passed through `log_safe()` (strips `\x00-\x1f\x7f`) before
+   the `sprintf`. Do **not** add raw request data (URI, UA, headers) to the
+   simple log without `log_safe()` — those belong in the JSONL intel log,
+   where `json_encode()` escapes newlines.
+3. **Cookie-substring bypass** — a non-WP cookie whose value contains
    `wordpress_logged_in_`. Mitigation: regex anchored to cookie-name
    boundary `(^|;\s*)wordpress_logged_in_[a-f0-9]+=` in both nginx and
    apache rewrites.
